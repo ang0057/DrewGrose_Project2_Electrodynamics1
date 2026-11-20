@@ -6,39 +6,61 @@ clc;
 % General space setup and variable declarations
 auburn_color_map = Generate_Auburn_Colormap_v0();
 
-% --- make the simulation space ---
-dx = 0.001; % dx = 1mm
-x_max = 20; % 20m
-x = 0:dx:x_max;
+% --- constitutive parameters ---
+eps_0 = 8.854e-12; 
+eps_r1 = 2; eps_r2 = 3; % relative permittivities of layers
+mu_0 = (4e-7)*pi;
+% -------------------------------
 
-dt = 0;
-t = 0:dt:7e-9; % 7ns
+c     = 1 / sqrt(mu_0 * eps_0); % speed of light
+
+f0      = 20e6;   % design frequency: 20 MHz
+lambda0 = c / f0; % free-space wavelength (~14.99 m)
+
+% --- make the simulation space ---
+dx = 0.025; % dx = 2.5cm
+x_max = 150; % 150m
+x = 0:dx:x_max;
+Nx = length(x);
+
+% Courant stability factor (starting with magic time step)
+S = 1.0; 
+dt = S * dx / c; % ~83.39 ps
+t_max = 400e-9;  % 400 ns (8 full cycles at 20 MHz)
+t = 0:dt:t_max;
+Nt = length(t);
+
 E = zeros(3, length(x)); % pre-allocate E array
+eps_r = ones(1, Nx);  % pre-allocate permittivity array
 % ---------------------------------
 
 
-% constitutive parameters
-eps_0 = 8.854e-12; 
-eps_r1 = 2; eps_r2 = 3;
-mu_0 = (4e-7)*pi;
-
-f = 20e6;
-
-% implement boundary conditions
-
-
 % --- build anti-reflective coating ---
+% quarter-wavelength layer thicknesses
+d1 = lambda0 / (4 * sqrt(eps_r1)); % ~2.6498 m
+d2 = lambda0 / (4 * sqrt(eps_r2)); % ~2.1636 m
+d3 = d1;                           % ~2.6498 m
 
-% define plate locations/dimensions as index ranges
-% z_shutter = 120:124;
-% z_sense   = 109:113;
-% z_ground  = 101:105;
-% 
-% x_sense1  = 150:245; % sense plate 1 (left)
-% x_sense2  = 255:350; % sense plate 2 (right)
-% x_ground  = 150:350; % bottom ground plate
+% positions in meters (roughly centered in the space to prevent PEC 
+% boundary reflections before t_max)
+x_src   = 65.0;  % source excitation position
+x_obs   = 70.0;  % reflection observation point
+x_start = 75.0;  % front face of coating
 
-% -------------------------------
+% convert meters to indices
+idx_src = round(x_src / dx) + 1;
+idx_obs = round(x_obs / dx) + 1;
+
+% map permittivity layers onto spatial grid
+% this method allows me to change the thicknesses and have the grid update
+idx_L1 = (x >= x_start) & (x < x_start + d1);
+idx_L2 = (x >= x_start + d1) & (x < x_start + d1 + d2);
+idx_L3 = (x >= x_start + d1 + d2) & (x < x_start + d1 + d2 + d3);
+
+eps_r(idx_L1) = eps_r1;
+eps_r(idx_L2) = eps_r2;
+eps_r(idx_L3) = eps_r1;
+% -------------------------------------
 
 
 % plot the space with initial conditions (example purposes)
@@ -53,27 +75,46 @@ f = 20e6;
 % 1D FDTD LOOP
 
 % set up Figure 2 to animate the motion during runtime
-% fig2 = figure;
-% colormap(auburn_color_map); 
+fig2 = figure;
+colormap(auburn_color_map); 
 
+% set frequency for this run
+f = f0;
 
-% tic % the whole loop takes ~XXs to run
-% for ii = 1:num_timesteps
-% 
-%     factor = (1/(mu_0*eps_0*eps_r(ii)))*((dt/dx)^2);
-% 
-%     % update animation plot
-%     colormap(auburn_color_map);
-%     c2 = colorbar; c2.Label.String = 'Electric Field Intensity (V/m)';
-%     c2.Label.FontSize = 14;
-%     axis xy;
-%     title(sprintf('Voltage Distribution (Step %d / %d)', ...
-%                                       ii, num_timesteps), 'FontSize', 14);
-%     xlabel('Length (m)', 'FontSize', 12); 
-%     ylabel('Height (m)', 'FontSize', 12);
-%     drawnow;
-% end
-% toc
+tic % the whole loop takes ~XXs to run
+for ii = 1:Nt
+    % source excitation 
+    % (simply turning a sine wave on for 4 periods)
+    if t(ii) < 4/f
+        E(2,1) = sin(2*pi*f*t(ii));
+    else
+        E(2,1) = 0;
+    end
+
+    % factor multiplying the first three terms
+    factor = (1/(mu_0*eps_0*eps_r(ii)))*((dt/dx)^2);
+
+    % forward stepping update equation [ E(i, n+1) ]
+    E(2:end-1, 3) = factor*(E(3:end, 2) - 2*E(2:end-1, 2) + E(1:end-2, 2)) ...
+        + 2*E(2:end-1, 2) - E(1:end-2, 1);
+
+    % scoot array in n (time)
+    E(2:end-1, 0) = E(2:end-1, 1); % E(i, n-2) = E(i, n-1)
+    E(2:end-1, 1) = E(2:end-1, 2); % E(i, n-1) = E(i, n)
+
+    % update animation plot
+    colormap(auburn_color_map);
+    plot(z, E(2,:), 'LineWidth', 3);
+    % c2 = colorbar; c2.Label.String = 'Electric Field Intensity (V/m)';
+    % c2.Label.FontSize = 14;
+    % axis xy;
+    title(sprintf('Propagation (Step %d / %d)', ...
+                                      ii, Nt), 'FontSize', 14);
+    xlabel('Length (m)', 'FontSize', 12); 
+    % ylabel('Height (m)', 'FontSize', 12);
+    drawnow;
+end
+toc
 % -------------------------------
 
 %% ========================================================================
