@@ -4,21 +4,25 @@ clc;
 
 %% ========================================================================
 % General space setup and variable declarations
-% auburn_color_map = Generate_Auburn_Colormap_v0();
+auburn_color_map = Generate_Auburn_Colormap_v0();
 
 % --- make the simulation space ---
-% dx = 0.001; % dx = 1mm
-% x_max = 20; % 20m
-% x = 0:dx:x_max;
+dx = 0.001; % dx = 1mm
+x_max = 20; % 20m
+x = 0:dx:x_max;
 
-% dt = 0;
+dt = 0;
+t = 0:dt:7e-9; % 7ns
+E = zeros(3, length(x)); % pre-allocate E array
 % ---------------------------------
 
 
 % constitutive parameters
-% eps_0 = 8.854e-12; 
+eps_0 = 8.854e-12; 
+eps_r1 = 2; eps_r2 = 3;
+mu_0 = (4e-7)*pi;
 
-
+f = 20e6;
 
 % implement boundary conditions
 
@@ -39,7 +43,6 @@ clc;
 
 % plot the space with initial conditions (example purposes)
 % fig1 = figure;
-% imagesc(x, z, V');
 % colormap(auburn_color_map);
 % c1 = colorbar; c1.Label.String = '(V/m)'; c1.Label.FontSize = 14;
 % axis xy;
@@ -53,8 +56,11 @@ clc;
 % fig2 = figure;
 % colormap(auburn_color_map); 
 
+
 % tic % the whole loop takes ~XXs to run
 % for ii = 1:num_timesteps
+% 
+%     factor = (1/(mu_0*eps_0*eps_r(ii)))*((dt/dx)^2);
 % 
 %     % update animation plot
 %     colormap(auburn_color_map);
@@ -100,7 +106,8 @@ clc;
 function auburn_color_map = Generate_Auburn_Colormap_v0()
 % This function generates the Auburn colors colormap where
 % blue is low value and orange is high value. RGB values
-% according to https://ocm.auburn.edu/brand-center/_assets/pdf/au-colorpalette-primary-supporting.pdf
+% according to 
+% https://ocm.auburn.edu/brand-center/_assets/pdf/au-colorpalette-primary-supporting.pdf
 
 % INPUTS: None.
 
@@ -123,14 +130,23 @@ length_colormap = 100;
 
 % make blue to white
 auburn_color_map = zeros(length_colormap,3);
-auburn_color_map(1:length_colormap/2,1) = (interp1([1,length_colormap/2], [blue(1) white(1)], 1:length_colormap/2))';
-auburn_color_map(1:length_colormap/2,2) = (interp1([1,length_colormap/2], [blue(2) white(2)], 1:length_colormap/2))';
-auburn_color_map(1:length_colormap/2,3) = (interp1([1,length_colormap/2], [blue(3) white(3)], 1:length_colormap/2))';
+auburn_color_map(1:length_colormap/2,1) = (interp1([1,length_colormap/2], ...
+    [blue(1) white(1)], 1:length_colormap/2))';
+auburn_color_map(1:length_colormap/2,2) = (interp1([1,length_colormap/2], ...
+    [blue(2) white(2)], 1:length_colormap/2))';
+auburn_color_map(1:length_colormap/2,3) = (interp1([1,length_colormap/2], ...
+    [blue(3) white(3)], 1:length_colormap/2))';
 
 % make white to orange
-auburn_color_map(length_colormap/2+1:length_colormap,1) = (interp1([length_colormap/2+1,length_colormap], [white(1) orange(1)], length_colormap/2+1:length_colormap))';
-auburn_color_map(length_colormap/2+1:length_colormap,2) = (interp1([length_colormap/2+1,length_colormap], [white(2) orange(2)], length_colormap/2+1:length_colormap))';
-auburn_color_map(length_colormap/2+1:length_colormap,3) = (interp1([length_colormap/2+1,length_colormap], [white(3) orange(3)], length_colormap/2+1:length_colormap))';
+auburn_color_map(length_colormap/2+1:length_colormap,1) = ...
+    (interp1([length_colormap/2+1,length_colormap], [white(1) orange(1)], ...
+    length_colormap/2+1:length_colormap))';
+auburn_color_map(length_colormap/2+1:length_colormap,2) = ...
+    (interp1([length_colormap/2+1,length_colormap], [white(2) orange(2)], ...
+    length_colormap/2+1:length_colormap))';
+auburn_color_map(length_colormap/2+1:length_colormap,3) = ...
+    (interp1([length_colormap/2+1,length_colormap], [white(3) orange(3)], ...
+    length_colormap/2+1:length_colormap))';
 
 % RGB values normalized from [0:1]
 auburn_color_map = auburn_color_map/255;
