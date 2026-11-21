@@ -235,85 +235,49 @@ end
 
 % pure reflected field at observation plane (since |E_inc| = 1 V/m)
 E_ref_obs = E_tot_obs - E_inc_obs;
-Gamma_fdtd(ff) = max(abs(E_ref_obs(idx_win)));
 
-% S_ref = sum(E_ref_obs .* exp(-1j * 2 * pi * f * t));
-% S_inc = sum(E_inc_obs .* exp(-1j * 2 * pi * f * t));
-% 
-% Gamma_fdtd(ff) = abs(S_ref) / max(abs(S_inc), eps);
+% summed complex phasor amplitudes for both reflected and incident waves
+S_ref = sum(E_ref_obs .* exp(-1j * 2 * pi * f * t));
+S_inc = sum(E_inc_obs .* exp(-1j * 2 * pi * f * t));
 
+% calulate gamma magnitude and print it for this frequency
+Gamma_fdtd(ff) = abs(S_ref) / max(abs(S_inc), eps);
 fprintf('  f/f0 = %4.2f (%5.1f MHz) -> |Gamma_FDTD| = %.4f\n', ...
     rel_freqs_fdtd(ff), f/1e6, Gamma_fdtd(ff));
-
-% old source excitation with no reference simulation:
-% for ii = 1:Nt
-%     % source excitation 
-%     % (simply turning a sine wave on for 2 periods)
-%     if t(ii) < 2/f
-%         E(1,2) = sin(2*pi*f*t(ii));
-%     else
-%         E(1,2) = 0;
-%     end
-% 
-%     % forward stepping update equation [ E(i, n+1) ]
-%     E(2:end-1, 3) = factor.*(E(3:end, 2) - 2*E(2:end-1, 2) + E(1:end-2, 2)) ...
-%         + 2*E(2:end-1, 2) - E(2:end-1, 1);
-% 
-%     % enforce PEC boundary conditions at edges (E = 0)
-%     E(1, 3)   = 0;
-%     E(end, 3) = 0;
-% 
-%     % scoot array forward in time (n)
-%     E(:, 1) = E(:, 2); % E(i, n-1) = E(i, n)
-%     E(:, 2) = E(:, 3); % E(i, n)   = E(i, n+1)
-% 
-%     % update animation plot (every 50th timestep)
-%     if animate_this_run && mod(ii, 50) == 0 || ii == Nt
-%         % update wave amplitude handle
-%         set(h_wave, 'YData', E(:, 2));
-% 
-%         % update title with accurate timestep and frequency
-%         title(ax, ...
-%             sprintf('1D FDTD Wave Propagation at %.1f MHz (Step %d / %d, t = %.1f ns)', ...
-%             f/1e6, ii, Nt, t(ii)*1e9), 'FontSize', 13);
-%         drawnow;
-%     end
-% end
-
 end
 toc
 % -------------------------------
 
 %% ========================================================================
 % Analytical solution
-
+% build a big vector for relative frequencies to plot a smooth curve later
 rel_freqs_ana = linspace(0.05, 2.0, 400);
 f_ana        = rel_freqs_ana * f0;
 
+% define intrinsic impedances for each medium
 eta0 = sqrt(mu_0 / eps_0);
 eta1 = eta0 / sqrt(eps_r1);
 eta2 = eta0 / sqrt(eps_r2);
 eta3 = eta1;
 etaL = eta0;
 
-% Exact analytical reflection coefficient for N = 3 layers
-Gamma_exact = zeros(size(f_ana));
+% exact analytical reflection coefficient for symmetric N = 3 layers
+Gamma_exact = zeros(size(f_ana)); % pre-allocate
 for k = 1:length(f_ana)
+    % omega and beta calculations
     w  = 2 * pi * f_ana(k);
     b1 = w * sqrt(mu_0 * eps_0 * eps_r1);
     b2 = w * sqrt(mu_0 * eps_0 * eps_r2);
     b3 = b1;
 
+    % calculate input impedances for each medium
     Z3 = eta3 * (etaL + 1j * eta3 * tan(b3 * d3)) / (eta3 + 1j * etaL * tan(b3 * d3));
     Z2 = eta2 * (Z3   + 1j * eta2 * tan(b2 * d2)) / (eta2 + 1j * Z3   * tan(b2 * d2));
     Z1 = eta1 * (Z2   + 1j * eta1 * tan(b1 * d1)) / (eta1 + 1j * Z2   * tan(b1 * d1));
 
+    % calculate gamma magnitudes
     Gamma_exact(k) = abs((Z1 - eta0) / (Z1 + eta0));
 end
-
-% calculate percent difference relative to analytical baseline
-% percent_diff = abs(V_out_numerical - ...
-%                         V_out_analytical) / abs(V_out_analytical) * 100;
 
 %% ========================================================================
 % Comparison of solutions plot
@@ -322,20 +286,19 @@ ax2 = axes('Parent', fig2);
 hold(ax2, 'on');
 
 plot(ax2, rel_freqs_ana, Gamma_exact, '-', 'Color', navy_au, 'LineWidth', 2.2);
-% plot(ax2, rel_freq_ana, Gamma_approx, '--', 'Color', [0.45, 0.45, 0.45], 'LineWidth', 1.8);
 plot(ax2, rel_freqs_fdtd, Gamma_fdtd, 'o', 'Color', orange_au, ...
     'MarkerFaceColor', orange_au, 'MarkerSize', 6.5, 'LineWidth', 1.5);
 
 grid(ax2, 'on');
 xlim(ax2, [0, 2.0]);
-ylim(ax2, [0, 0.35]);
+ylim(ax2, [0, 0.5]);
 xticks(ax2, 0:0.5:2.0);
 xlabel(ax2, 'Relative Frequency (f / f_0)', 'FontSize', 12);
 ylabel(ax2, 'Input Reflection Coefficient |\Gamma_{in}|', 'FontSize', 12);
 title(ax2, 'Frequency Response of 3-Layer Quarter-Wave ARC (\epsilon_r = [2, 3, 2], f_0 = 20 MHz)', ...
     'FontSize', 13);
-legend(ax2, {'Analytical (Exact Transmission Line)', ...
-             '1D FDTD Simulation'}, ...
+legend(ax2, {'Analytical Solution', ...
+             'Numerical Solution'}, ...
     'Location', 'north', 'FontSize', 10.5);
 
 %% ========================================================================
@@ -394,54 +357,3 @@ auburn_color_map = auburn_color_map/255;
 end
 
 % ----------------------------------
-
-% --- TRACE Blackman Harris Waveform Function ---
-% function from TRACE repo:
-
-function [source, source_fft] = Blackman_Harris_Windowed_Sin_Wave_v0(f0, dt, time_vec, period_start, period_end)
-% This function creates a sine wave wrapped in a Blackman Harris window.
-
-% INPUTS:
-% f0 = center frequency
-% dt = time differential
-% time_vec = time vector of the simulaiton
-% period_start = starting period of the output waveform
-% period_end   = ending period of the output waveform
-%       duration of waveform will be period_end-period_start
-
-% OUTPUTS:
-% source = time domain waveform
-% source_fft = frequency domain waveform
-
-% DEPENDENCIES: none.
-
-% Author: Henry Nance
-% last edited: 01/13/2026
-
-% DESIRED UPDATES: none
-
-    num_time_steps = length(time_vec);
-    a0 = 0.35875;
-    a1 = 0.48829;
-    a2 = 0.14128;
-    a3 = 0.01168;
-    T = 1/f0;
-    t_end = period_end*T;
-    t_start = period_start*T;
-    t_source = t_start*T:dt:t_end; 
-    t_offset = length(0:dt:t_start)+1;
-    N_source = length(t_source);
-    n = 0:N_source-1;
-    window = zeros(num_time_steps,1);
-    window(1+t_offset:N_source+t_offset) = a0 - a1*cos(2*pi*n/(N_source-1))...
-                 + a2*cos(4*pi*n/(N_source-1)) - a3*cos(6*pi*n/(N_source-1));
-    
-    my_sin = sin(2*pi*f0*time_vec);
-    source = window.*my_sin';
-    source = source./max(abs(source));
-    source_fft = fft(source)./num_time_steps;
-    % adjust per https://www.mathworks.com/help/matlab/ref/fft.html
-    source_fft(2:end-1) = 2*source_fft(2:end-1);
-
-end
-% -----------------------------------------------
